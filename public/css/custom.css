@@ -1,0 +1,44 @@
+.navbar-brand {
+	font-size: 2rem;
+}
+
+.url-input-label {
+	font-size: 1.2rem;
+	margin-bottom: 0rem;
+}
+
+.invisible {
+	display: none;
+}
+
+.filters-btn-row {
+	margin-bottom: 0.5rem;
+}
+
+svg rect:hover{
+	stroke: #132aaf;
+	stroke-width: 2;
+}
+
+svg text.tickCountLabel {
+	display: none;
+}
+svg g:hover .tickCountLabel {
+	display: block;
+}
+
+#downloadbtn {
+	margin-top: 2rem;
+}
+
+.irs-from, .irs-to, .irs-single {
+	background: #007bff;
+}
+
+.irs-from::after, .irs-to::after, .irs-single::after {
+	border-top-color: #007bff;
+}
+
+.irs-grid-pol.small {
+	background: white;
+}

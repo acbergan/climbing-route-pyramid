@@ -1,0 +1,552 @@
+<!-- views/home.ejs -->
+
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Route Pyramid</title>
+  
+  <!-- Bootstrape -->
+  <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <!-- <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/10.0.0/css/bootstrap-slider.min.css" rel="stylesheet"> -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/10.0.0/bootstrap-slider.min.js"></script> -->
+
+  <!-- SVG -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/2.6.3/svg.min.js"></script>
+
+  <!-- ion rangeslider -->
+  <script type="text/javascript" src="/js/ion.rangeSlider.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="/css/ion.rangeSlider.css" />
+  <link rel="stylesheet" type="text/css" href="/css/ion.rangeSlider.skinModern.css" />
+
+  <!-- local -->
+  <link rel="stylesheet" type="text/css" href="/css/custom.css" />
+
+  <script type="text/javascript">
+
+    const w = 500;
+    var routes;
+    var routeStyle = "all";
+    var countMultipitch = false;
+    var includeHangs = false;
+    var numberGradesInit = 6;
+    var minNumberGrades = 3;
+    var minGradeIdxOld;
+    var maxGradeIdxOld;
+    var slider;
+    var gradeBreakdownCur;
+
+    function getGradeBreakdown(routes) {
+      let gradeBreakdown = {};
+
+      for (var i = 0; i < routes.length; i++) {
+        if (routeStyle==="all" || routeStyle===routes[i].type) {
+          routeGrade = routes[i].grade;
+
+          // Rock routes
+          if (routeGrade.match(/^5/)) {
+
+            // Hangs
+            if (!(includeHangs) && routes[i].leadStyle==="Fell/Hung") {
+              continue;
+            }
+
+            // Tweak grades
+            if (routeGrade.match(/\.(\d+)/)[1] < 10) {
+              routeGrade = routeGrade.replace(/[-\+]/, '')  // Ignore +/-
+              // if (routeGrade <= fiveEasy) {                 // Group easy route
+              //   routeGrade = fiveEasy
+              // }
+            } else { // 5.10 and up
+              routeGrade = routeGrade.replace(/\+/, 'd')  // Change '+' to 'd'
+              routeGrade = routeGrade.replace(/\-/, 'a')  // Change '-' to 'a'
+              if (routeGrade.match(/\d+$/)) {             // If there's no letter, call it a 'b'
+                routeGrade += 'b'
+              }
+              routeGrade = routeGrade.replace(/(\d+)(a\/b)/, '$1a')  // Round down
+              routeGrade = routeGrade.replace(/(\d+)(b\/c)/, '$1b')
+              routeGrade = routeGrade.replace(/(\d+)(c\/d)/, '$1c')
+            }
+
+            // Add leading zero to facilitate sorting
+            if (! (routeGrade.match(/1\d/))) {
+              routeGrade = '0' + routeGrade
+            }
+          } else if (routeGrade.match(/^V/) && routeStyle==="Boulder") {
+            routeGrade = routeGrade.replace(/\-[0-9]/, '') // Ignore grade range e.g. V3-4
+            routeGrade = routeGrade.replace(/[-\+]/, '')  // Ignore +/-
+            routeGrade = '0' + routeGrade // For consistency
+          } else {
+            continue;
+          }
+
+          // Number of pitches
+          let npitches = 1;
+          if (countMultipitch) {
+            npitches = parseInt(routes[i].pitches)
+          }
+
+          // Count of routes
+          if (routeGrade in gradeBreakdown) {
+            gradeBreakdown[routeGrade] += npitches
+          } else {
+            gradeBreakdown[routeGrade] = npitches
+          }
+        }
+      }
+      gradeBreakdownCur = gradeBreakdown;
+      return gradeBreakdown
+    }
+
+    function createSVG(gradeBreakdown, options) {
+      // Default args
+      if (! (options)) { options = {}}
+      minGradeIdx = options.minGradeIdx || -1;
+      maxGradeIdx = options.maxGradeIdx || -1;
+      reset = options.reset || false;
+
+      // Sort by increasing grade
+      var keys = Object.keys(gradeBreakdown).sort();
+
+      // Reset grade range
+      if (reset) {
+        let numGrades = keys.length;
+        minGradeIdx = (numGrades >= numberGradesInit) ? numGrades-numberGradesInit : 0;
+        maxGradeIdx = numGrades-1;
+      } else { // Slice to min, max
+        if (minGradeIdx >= 0) {
+          minGradeIdxOld = minGradeIdx;
+        } else {
+          minGradeIdx = minGradeIdxOld;
+        }
+        if (maxGradeIdx >= 0) {
+          maxGradeIdxOld = maxGradeIdx;
+        } else {
+          maxGradeIdx = maxGradeIdxOld;
+        }
+      }
+      keys = keys.slice(minGradeIdx, maxGradeIdx+1);
+      keys.reverse();
+
+      // SVG drawing initialization
+      var gradeBreakdownSelected = keys.reduce(function(o, k) { o[k] = gradeBreakdown[k]; return o; }, {});
+      var values = $.map(gradeBreakdownSelected, function(value, key) { return value })
+      var maxCount = Math.max.apply(Math, values);
+      var barHeight = 30;
+      var h_offset = 50;
+      var vertGap = 4;
+      var h = keys.length*(barHeight+vertGap);
+      var draw = SVG('drawing').size(w+200, h+h_offset);
+
+      // Render data
+      if (keys.length >= minNumberGrades) {
+        // Triangle outline
+        draw.polygon('100,'+(h+h_offset)+' '+(w/2+100)+',0 '+(w+100)+','+(h+h_offset))
+          .fill('none')
+          .stroke({ width: 1, stroke: '#5a6268' });
+
+        for (var i = 0; i < keys.length; i++) {
+          // Remove leading zero
+          var key = keys[i];
+          if (! (key.match(/1\d/))) {
+            key = key.substring(1);
+          }
+
+          var curCount = gradeBreakdown[keys[i]];
+
+          var group = draw.group();
+
+          // Add pyramid level to the svg
+          var iw = (w/maxCount)*curCount
+          group.rect(iw,barHeight).attr({ x: w/2-iw/2+100, y: h/keys.length*i+h_offset, fill: '#007bff'})
+          
+          // Grade label
+          group.text(key).attr({ x: 0, y: h/keys.length*i + h_offset})
+
+          // Tick count
+          var tickLabel = group.text(curCount.toString()).addClass('tickCountLabel')
+          tickLabel.font({anchor: 'middle'});
+          // w/2+100
+          tickLabel.move(w/2+100, h/keys.length*(i+0.25)+h_offset - 10)
+        }
+      } else {
+        $("svg#drawing").after("<div>You don\'t have enough ticks to create a pyramid. Go climb :)</div>")
+      }
+    }
+
+    function updateSlider(gradeBreakdown) {
+      let keys = Object.keys(gradeBreakdown).sort();
+      let numGrades = keys.length;
+
+      // Grade range
+      minGradeIdx = (numGrades >= numberGradesInit) ? numGrades-numberGradesInit : numGrades-1;
+      maxGradeIdx = numGrades-1;
+
+      // Setup slider for grade range
+      if (slider) {
+        slider.update({
+          values: keys,
+          from: minGradeIdx,
+          to: maxGradeIdx
+        })
+      }
+    }
+    
+    function render(gradeBreakdown, avatar, username, numRouts) {
+      let keys = Object.keys(gradeBreakdown).sort();
+      let numGrades = keys.length;
+
+      // Grade range
+      minGradeIdx = (numGrades >= numberGradesInit) ? numGrades-numberGradesInit : numGrades-1;
+      maxGradeIdx = numGrades-1;
+
+      // Setup slider for grade range
+      if (slider) {
+        slider.update({
+          values: keys,
+          from: minGradeIdx,
+          to: maxGradeIdx,
+          min_interval: minNumberGrades
+        })
+      } else {
+        $("#grade-range").ionRangeSlider({ 
+          type: "double",
+          values: keys,
+          grid: true,
+          // hide_min_max: true,
+          from: minGradeIdx,
+          to: maxGradeIdx,
+          min_interval: minNumberGrades,
+          onFinish: function(data) {
+            $("#drawing").children().remove();
+            createSVG(gradeBreakdownCur, {
+              minGradeIdx: data["from"], 
+              maxGradeIdx: data["to"]
+            })
+          }
+        });
+        slider = $("#grade-range").data("ionRangeSlider");
+      }
+
+      // Create the image
+      createSVG(gradeBreakdown, {
+        minGradeIdx: minGradeIdx, 
+        maxGradeIdx: maxGradeIdx
+      })
+
+      // Update user data
+      $("#userImg").attr("src", avatar);
+      $('#userImg').show();
+      $('#userNameDisplay').text("User Name: " + username)
+      $('#userNumTicks').text("Ticks: " + numRouts)
+
+      // Show the results
+      $('#loading').addClass('invisible');
+      $('#viz').removeClass('invisible');
+    }
+
+    function processResponse(response) {
+      routes = response['routes'];
+      // console.log(routes)
+      var gradeBreakdown = getGradeBreakdown(routes)
+      $("#drawing").children().remove();
+      render(gradeBreakdown, response['avatar'], response['userName'], routes.length)
+    }
+
+    function binaryblob(){
+      var byteString = atob(document.querySelector("canvas").toDataURL().replace(/^data:image\/(png|jpg);base64,/, "")); // tf is atob?? https://developer.mozilla.org/en-US/docs/Web/API/Window.atob
+      var ab = new ArrayBuffer(byteString.length);
+      var ia = new Uint8Array(ab);
+      for (var i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+      }
+      var dataView = new DataView(ab);
+      var blob = new Blob([dataView], {type: "image/png"});
+      var DOMURL = self.URL || self.webkitURL || self;
+      var newurl = DOMURL.createObjectURL(blob);
+
+      var img = '<img src="'+newurl+'">'; 
+      $("#img").html(img);
+    }
+
+
+    $(document).ready ( function() {
+
+      // For updating data source
+      // var working = false;
+      $("#tickDataUpdateForm").submit(function(e){
+        e.preventDefault();
+        $('#viz').addClass('invisible');
+        $('#nodata').addClass('invisible')
+        $('#loading').removeClass('invisible');
+
+        $.ajax({
+          type: 'POST',
+          url: "/api/tickdata",
+          data: $('#tickDataUpdateForm').serialize(), 
+          success: function(response) {
+            // console.log(response)
+            processResponse(response)
+          },
+          error: function(response) {
+            $('#loading').addClass('invisible')
+            $('#nodata div').empty()
+            $('#nodata div').append("<br>" + response.responseText)
+            $('#nodata').removeClass('invisible')
+          }
+        });
+        return false;
+      });
+
+
+      $("#jason").click(function(e){
+        e.preventDefault();
+        $('#viz').addClass('invisible');
+        $('#nodata').addClass('invisible')
+        $('#loading').removeClass('invisible');
+
+        $.ajax({
+          type: 'POST',
+          url: "/api/tickdata/14595",
+          success: function(response) {
+            processResponse(response)
+          },
+          error: function(response) {
+            console.log(response)
+            console.log('got an error')
+          }
+        });
+        return false;
+      });
+
+      // Download button
+      $("#save").click(function(e) {
+        var html = $("#drawing").parent().html();
+
+        // Move the inline svg into a hidden img tag
+        var imgsrc = 'data:image/svg+xml;base64,'+ btoa(html);
+        var img = '<img src="'+imgsrc+'">'; 
+
+        // Load the image into a canvas object to convert to png
+        var canvas = document.querySelector("canvas"),
+        context = canvas.getContext("2d");
+
+        // Convert to a png and auto download
+        var image = new Image;
+        image.src = imgsrc;
+        image.onload = function() {
+          context.drawImage(image, 0, 0);
+          binaryblob();
+          var a = document.createElement("a");
+          a.download = "route-pyramid.png";
+          a.href = canvas.toDataURL("image/png");
+          var pngimg = '<img src="'+a.href+'">';
+          a.click();
+        };
+      });
+
+      // Filter - route type
+      $("#route-type :input").change(function() {
+        if (this.id === "route-type-rock") {
+          $(".rock").removeClass('invisible');
+          $(".boulder").addClass('invisible');
+          routeStyle = "all"
+          $("#route-style > > #all").trigger("click"); // Revert to "all"
+        } else if (this.id === "route-type-boulder") {
+          $(".rock").addClass('invisible');
+          $(".boulder").removeClass('invisible');
+          routeStyle = "Boulder"
+        }
+        var gradeBreakdown = getGradeBreakdown(routes)
+        $("#drawing").children().remove();
+        $("#drawing").siblings().remove();
+        updateSlider(gradeBreakdown);
+        createSVG(gradeBreakdown, {reset: true})
+      });
+
+      // Filter - route style
+      $("#route-style :input").change(function() {
+        // Update the menu
+        if (this.id === "TR") {
+          $("#climbing-style").addClass('invisible');
+          $("#multipitch").addClass('invisible');
+        } else {
+          $("#climbing-style").removeClass('invisible');
+          $("#multipitch").removeClass('invisible');
+        }
+
+        // Update the graphic
+        routeStyle = this.id
+        var gradeBreakdown = getGradeBreakdown(routes)
+        $("#drawing").children().remove();
+        $("#drawing").siblings().remove();
+        updateSlider(gradeBreakdown);
+        createSVG(gradeBreakdown, {reset: true})
+      });
+
+      // Count pitches
+      $("#multipitch-count").change(function() {
+        if($(this).prop('checked')) {
+          countMultipitch = true;
+        } else {
+          countMultipitch = false;
+        }
+
+        // Update the graphic
+        var gradeBreakdown = getGradeBreakdown(routes)
+        $("#drawing").children().remove();
+        $("#drawing").siblings().remove();
+        createSVG(gradeBreakdown)
+      });
+
+      // Include falls/hangs
+      $("#hangs-include").change(function() {
+        if($(this).prop('checked')) {
+          includeHangs = true;
+        } else {
+          includeHangs = false;
+        }
+
+        // Update the graphic
+        var gradeBreakdown = getGradeBreakdown(routes)
+        $("#drawing").children().remove();
+        $("#drawing").siblings().remove();
+        updateSlider(gradeBreakdown);
+        createSVG(gradeBreakdown, {reset: true})
+      });
+    });
+  </script>
+
+</head>
+
+<body>
+  <div class="container">
+    <div class="header clearfix">
+      <nav class="navbar">
+        <span class="navbar-brand">Visualize Your Climbing Route Pyramid</span>
+      </nav>
+    </div>
+    <br>
+
+    <div class="row">
+      <div class="col">
+        <p>A cool way to think about your climbing progress is in terms of a pyramid. Each is a level of the pyramid is proportional to the number of ticks you have at the grade with lots of easy grades at the base to your latest 5.hard send at the top. The idea is that you will develop good technique by making sure you get the right balance of time on easy, moderate, and difficult routes.</p>
+        <p>This app uses your ticks on Mountain Project to create a graphic of your route pyramid. If you have Mountain Project account with ticks logged, enter your email below and check it out. Or check out a rather prolific climber like <a id="jason" href="">Jason Halladay</a>. Learn more about this app on <a href="http://andrewbergan.com/2018/02/24/visualizing-my-climbing-route-pyramid.html">my blog</a>.</p>
+      </div>
+    </div>
+
+    <form id="tickDataUpdateForm">
+      <div class="form-row">
+        <div class="col-auto my-1">
+          <div class="form-check align-items-center">
+            <span class="url-input-label">Show your route pyramid</span>
+          </div>
+        </div>
+        <div class="col-5 my-1">
+          <input type="text" class="form-control" id="email" name="email" placeholder="Enter your email">
+        </div>
+        <div class="col-auto my-1">
+          <button type="submit" id="submit" class="btn btn-primary">Update</button>
+        </div>
+      </div>
+    </form>
+    <br>
+
+    
+
+
+    
+    <div class="row invisible" id="loading">
+      <div class="col text-center">
+        <br><br>Loading ...
+      </div>
+    </div>
+    <div class="row invisible" id="nodata">
+      <div class="col text-center">
+      </div>
+    </div>
+    <div class="invisible" id="viz">
+      <div class="row">
+        <div class="col-8">
+          <svg id="drawing"></svg>
+        </div>
+        <div class="col-4">
+          <img src="https://cdn.apstatic.com//img//user//missing2.svg" id="userImg" width="150">
+          <p>
+            <div id="userNameDisplay"></div>
+            <div id="userNumTicks"></div>
+          </p>
+          <p>
+            <b>Filters</b>
+          </p>
+          <div class="container">
+            <div class="row">
+              <div id="route-type" class="btn-group btn-group-toggle filters-btn-row" data-toggle="buttons">
+                <label class="btn btn-outline-primary btn-sm active">
+                  <input type="radio" name="route-type" id="route-type-rock" autocomplete="off" checked>Rock
+                </label>
+                <label class="btn btn-outline-primary btn-sm">
+                  <input type="radio" name="route-type" id="route-type-boulder" autocomplete="off">Boulder
+                </label>
+              </div>
+            </div>
+            <div class="row">
+              <div id="route-style" class="btn-group btn-group-toggle filters-btn-row rock" data-toggle="buttons">
+                <label class="btn btn-outline-primary btn-sm active">
+                  <input type="radio" name="route-style" id="all" autocomplete="off" checked>All
+                </label>
+                <label class="btn btn-outline-primary btn-sm">
+                  <input type="radio" name="route-style" id="Trad" autocomplete="off">Trad
+                </label>
+                <label class="btn btn-outline-primary btn-sm">
+                  <input type="radio" name="route-style" id="Sport" autocomplete="off">Sport
+                </label>
+                <label class="btn btn-outline-primary btn-sm">
+                  <input type="radio" name="route-style" id="TR" autocomplete="off">Top Rope
+                </label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-8 rock" style="padding-left: 0">
+                <input type="text" id="grade-range" value="" />
+              </div>
+            </div>
+            <div class="row">
+              <div id="multipitch" class="form-check rock">
+                <input class="form-check-input" type="checkbox" value="" id="multipitch-count">
+                <label class="form-check-label" for="multipitch-count">
+                  Count each pitch as a tick
+                </label>
+              </div>
+            </div>
+            <div class="row">
+              <div id="hangs" class="form-check rock">
+                <input class="form-check-input" type="checkbox" value="" id="hangs-include">
+                <label class="form-check-label" for="hangs-include">
+                  Include hangs
+                </label>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+      <div class="row" id="downloadbtn">
+        <div class="col">
+          <button id="save" class="btn btn-primary">
+            <span class="fa fa-download" aria-hidden="true"></span> Save Image
+          </button>
+          <canvas width="960" height="500" style="display:none"></canvas>
+        </div>
+      </div>
+    </div>
+    <p><p>
+  </div>
+</body>
+
+</html>

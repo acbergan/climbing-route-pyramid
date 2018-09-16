@@ -1,0 +1,31 @@
+{
+  "name": "climbing-route-pyramid",
+  "version": "1.0.0",
+  "description": "Visualize a climbing route pyramid",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/acbergan/climbing-route-pyramid.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/acbergan/climbing-route-pyramid/issues"
+  },
+  "homepage": "https://github.com/acbergan/climbing-route-pyramid#readme",
+  "dependencies": {
+    "axios": "^0.17.1",
+    "body-parser": "^1.18.2",
+    "cheerio": "^1.0.0-rc.2",
+    "ejs": "^2.5.7",
+    "express": "^4.16.2",
+    "mongoose": "^5.0.2"
+  },
+  "engines": {
+    "node": "8.9.4"
+  }
+}
